@@ -38,7 +38,7 @@
         they're not picked up across transitive dependencies. See this GitHub Issue for details:
         https://github.com/NuGet/Home/issues/5740
         -->
-    <NoWarn>$(NoWarn);NU1701</NoWarn>
+    <NoWarn>$(NoWarn);NU1701, SKEXP0001, SKEXP0002, SKEXP0011, SKEXP0012</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

@@ -20,7 +20,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.SemanticKernel.Connectors.OpenAI;
-using Microsoft.WindowsAzure.Storage.Auth;
 using Services;
 
 namespace Microsoft.BotBuilderSamples
@@ -35,6 +34,19 @@ namespace Microsoft.BotBuilderSamples
                 .AddEnvironmentVariables()
                 .Build();
             services.AddSingleton(configuration);
+
+            // Fetch the translation API key and endpoint from configuration
+            var translationApiKey = configuration.GetValue<string>("TRANSLATOR_API_KEY");
+            var translationApiEndpoint = configuration.GetValue<string>("TRANSLATOR_API_ENDPOINT");
+
+            // Check if the translation settings are present
+            if (string.IsNullOrEmpty(translationApiKey) || string.IsNullOrEmpty(translationApiEndpoint))
+            {
+                throw new InvalidOperationException("Translation API key or endpoint is not configured.");
+            }
+
+            // Register TranslationPlugin with the required API key and endpoint
+            services.AddSingleton(new TranslationPlugin(translationApiKey, translationApiEndpoint));
 
             services.AddHttpClient<DirectLineService>();
 
