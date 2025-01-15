@@ -45,11 +45,6 @@ namespace Microsoft.BotBuilderSamples
                 throw new InvalidOperationException("Translation API key or endpoint is not configured.");
             }
 
-            // Register TranslationPlugin with the required API key and endpoint
-            services.AddSingleton(new TranslationPlugin(translationApiKey, translationApiEndpoint));
-
-            services.AddHttpClient<DirectLineService>();
-
             DefaultAzureCredential azureCredentials;
             if (configuration.GetValue<string>("MicrosoftAppType") == "UserAssignedMSI")
                 azureCredentials = new DefaultAzureCredential(new DefaultAzureCredentialOptions() { ManagedIdentityClientId = configuration.GetValue<string>("MicrosoftAppId") });

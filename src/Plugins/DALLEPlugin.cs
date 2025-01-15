@@ -1,13 +1,11 @@
 using System.ComponentModel;
 using System.Threading.Tasks;
-using Azure;
 using Microsoft.SemanticKernel;
 using Microsoft.BotBuilderSamples;
 using Microsoft.Bot.Builder;
 using Microsoft.Bot.Schema;
 using Azure.AI.OpenAI;
 using System.Collections.Generic;
-using System;
 
 namespace Plugins;
 public class DALLEPlugin

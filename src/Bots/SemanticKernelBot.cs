@@ -101,116 +101,150 @@ namespace Microsoft.BotBuilderSamples
 
         public override async Task<string> ProcessMessage(ConversationData conversationData, ITurnContext<IMessageActivity> turnContext)
         {
-            await turnContext.SendActivityAsync(new Activity(type: "typing"));
-
-            await HandleFileUploads(conversationData, turnContext);
-
-            if (turnContext.Activity.Text.IsNullOrEmpty())
-                return "";
-
-            string userInput = turnContext.Activity.Text.Trim();
-
-            // Detect if the user is asking for a translation
-            if (userInput.StartsWith("Translate", StringComparison.OrdinalIgnoreCase))
+            try
             {
-                // Extract text and target language(s)
-                string[] parts = userInput.Substring(10).Split(" to ", StringSplitOptions.RemoveEmptyEntries);
-                if (parts.Length == 2)
+                await turnContext.SendActivityAsync(new Activity(type: "typing"));
+
+                await HandleFileUploads(conversationData, turnContext);
+
+                if (turnContext.Activity.Text.IsNullOrEmpty())
+                    return "";
+
+                string userInput = turnContext.Activity.Text.Trim();
+
+                // Detect if the user is asking for a translation
+                if (userInput.StartsWith("Translate", StringComparison.OrdinalIgnoreCase))
                 {
-                    string textToTranslate = parts[0].Trim();
-                    string[] targetLanguages = parts[1].Split(',').Select(lang => lang.Trim()).ToArray();
-
-                    try
+                    // Extract text and target language(s)
+                    string[] parts = userInput.Substring(10).Split(" to ", StringSplitOptions.RemoveEmptyEntries);
+                    if (parts.Length == 2)
                     {
-                        // lookup: full name -> short form
-                        var reverseSupportedLanguages = _supportedLanguages.ToDictionary(kv => kv.Value.ToLower(), kv => kv.Key.ToLower());
+                        string textToTranslate = parts[0].Trim();
+                        string[] targetLanguages = parts[1].Split(',').Select(lang => lang.Trim()).ToArray();
 
-                        // Check if each target language is supported
-                        List<string> results = new List<string>();
-                        foreach (string targetLanguage in targetLanguages)
+                        try
                         {
-                            string targetLanguageLower = targetLanguage.ToLower();
-                            string languageKey = null;
+                            // lookup: full name -> short form
+                            var reverseSupportedLanguages = _supportedLanguages.ToDictionary(kv => kv.Value.ToLower(), kv => kv.Key.ToLower());
 
-                            // Check if target language is full name (e.g., "German") or short form (e.g., "de")
-                            if (reverseSupportedLanguages.ContainsKey(targetLanguageLower))
+                            // Check if each target language is supported
+                            List<string> results = new List<string>();
+                            foreach (string targetLanguage in targetLanguages)
                             {
-                                languageKey = reverseSupportedLanguages[targetLanguageLower]; // Get the short form
-                            }
-                            else if (_supportedLanguages.ContainsKey(targetLanguageLower))
-                            {
-                                languageKey = targetLanguageLower; // It is already a short form (e.g., "de")
+                                string targetLanguageLower = targetLanguage.ToLower();
+                                string languageKey = null;
+
+                                // Check if target language is full name (e.g., "German") or short form (e.g., "de")
+                                if (reverseSupportedLanguages.ContainsKey(targetLanguageLower))
+                                {
+                                    languageKey = reverseSupportedLanguages[targetLanguageLower]; // Get the short form
+                                }
+                                else if (_supportedLanguages.ContainsKey(targetLanguageLower))
+                                {
+                                    languageKey = targetLanguageLower; // It is already a short form (e.g., "de")
+                                }
+
+                                if (languageKey == null)
+                                {
+                                    results.Add($"The language '{targetLanguage}' is not supported.");
+                                }
+                                else
+                                {
+                                    // Perform translation using the correct short form
+                                    string translatedText = await _translationPlugin.TranslateTextAsync(textToTranslate, languageKey);
+                                    results.Add($"Translated to {targetLanguage}: {translatedText}");
+                                }
                             }
 
-                            if (languageKey == null)
+                            if (results.Count == 0)
                             {
-                                results.Add($"The language '{targetLanguage}' is not supported.");
+                                return "No valid languages were specified.";
                             }
-                            else
-                            {
-                                // Perform translation using the correct short form
-                                string translatedText = await _translationPlugin.TranslateTextAsync(textToTranslate, languageKey);
-                                results.Add($"Translated to {targetLanguage}: {translatedText}");
-                            }
+
+                            return string.Join("\n", results);
                         }
-
-                        if (results.Count == 0)
+                        catch (Exception)
                         {
-                            return "No valid languages were specified.";
+                            // Send a user-friendly response
+                            await turnContext.SendActivityAsync(new Activity
+                            {
+                                Type = ActivityTypes.Message,
+                                Text = "Apologies, something went wrong while processing your translation request. Please try again later or provide more details for further assistance."
+                            });
                         }
-
-                        return string.Join("\n", results);
                     }
-                    catch (Exception ex)
+                    else
                     {
-                        await turnContext.SendActivityAsync("Failed to translate text. Please ensure the input format is correct.");
-                        return $"Error: {ex.Message}";
+                        await turnContext.SendActivityAsync("Invalid translation request. Use the format: 'Translate: [text] to [language1, language2,...]'");
+                        return "";
                     }
+                }
+
+                // Define a list of keywords for supported languages queries
+                var languageKeywords = new List<string>
+                {
+                    "languages", 
+                    "supported languages", 
+                    "which languages", 
+                    "available languages", 
+                    "translate to which languages", 
+                    "languages you support", 
+                    "what languages", 
+                    "language options"
+                };
+
+                // Check if user input contains any of the keywords
+                if (languageKeywords.Any(keyword => userInput.Contains(keyword, StringComparison.OrdinalIgnoreCase)))
+                {
+                    await DisplaySupportedLanguagesAsync(turnContext);
+                    return "Displayed supported languages.";
+                }
+
+                // Continue with the existing image generation and other logic if it's not a translation request
+                kernel = Kernel.CreateBuilder()
+                    .AddAzureOpenAIChatCompletion(_aoaiModel, _aoaiClient)
+                    .AddAzureOpenAITextToImage(_dalleModel, _apiendpoint, _apiKey)
+                    .Build();
+
+                // Import plugins as usual
+                if (_sqlConnectionFactory != null) kernel.ImportPluginFromObject(new SQLPlugin(conversationData, turnContext, _sqlConnectionFactory), "SQLPlugin");
+                if (_documentAnalysisClient != null) kernel.ImportPluginFromObject(new UploadPlugin(conversationData, turnContext, _embeddingsClient), "UploadPlugin");
+                if (_searchClient != null) kernel.ImportPluginFromObject(new HRHandbookPlugin(conversationData, turnContext, _embeddingsClient, _searchClient, _blobServiceClient, _searchSemanticConfig), "HRHandbookPlugin");
+                kernel.ImportPluginFromObject(new DALLEPlugin(conversationData, turnContext, _aoaiClient), "DALLEPlugin");
+                if (_bingClient != null) kernel.ImportPluginFromObject(new BingPlugin(conversationData, turnContext, _bingClient), "BingPlugin");
+                if (!_useStepwisePlanner) kernel.ImportPluginFromObject(new HumanInterfacePlugin(conversationData, turnContext, _aoaiClient), "HumanInterfacePlugin");
+                kernel.ImportPluginFromObject(_translationPlugin, "TranslationPlugin");
+
+                // Process with stepwise planner if enabled
+                if (_useStepwisePlanner)
+                {
+                    var plannerOptions = new FunctionCallingStepwisePlannerConfig { MaxTokens = 128000 };
+                    var planner = new FunctionCallingStepwisePlanner(plannerOptions);
+                    string prompt = FormatConversationHistory(conversationData);
+                    var result = await planner.ExecuteAsync(kernel, prompt);
+                    return result.FinalAnswer;
                 }
                 else
                 {
-                    await turnContext.SendActivityAsync("Invalid translation request. Use the format: 'Translate: [text] to [language1, language2,...]'.");
-                    return "";
+                    var plannerOptions = new HandlebarsPlannerOptions { MaxTokens = 128000 };
+                    var planner = new HandlebarsPlanner(plannerOptions);
+                    string prompt = FormatConversationHistory(conversationData);
+                    var plan = await planner.CreatePlanAsync(kernel, prompt);
+                    var result = await plan.InvokeAsync(kernel, default);
+                    return result;
                 }
             }
-
-            if (userInput.Equals("Show languages", StringComparison.OrdinalIgnoreCase))
+            catch (Exception ex)
             {
-                await DisplaySupportedLanguagesAsync(turnContext);
-                return "Displayed supported languages.";
-            }
+                // Send a user-friendly response
+                await turnContext.SendActivityAsync(new Activity
+                {
+                    Type = ActivityTypes.Message,
+                    Text = "Apologies, something went wrong on our end. We're working on resolving it. Please try again later or provide more details to assist with troubleshooting."
+                });
 
-            // Continue with the existing image generation and other logic if it's not a translation request
-            kernel = Kernel.CreateBuilder()
-                .AddAzureOpenAIChatCompletion(_aoaiModel, _aoaiClient)
-                .AddAzureOpenAITextToImage(_dalleModel, _apiendpoint, _apiKey)
-                .Build();
-
-            // Import plugins as usual
-            if (_sqlConnectionFactory != null) kernel.ImportPluginFromObject(new SQLPlugin(conversationData, turnContext, _sqlConnectionFactory), "SQLPlugin");
-            if (_documentAnalysisClient != null) kernel.ImportPluginFromObject(new UploadPlugin(conversationData, turnContext, _embeddingsClient), "UploadPlugin");
-            if (_searchClient != null) kernel.ImportPluginFromObject(new HRHandbookPlugin(conversationData, turnContext, _embeddingsClient, _searchClient, _blobServiceClient, _searchSemanticConfig), "HRHandbookPlugin");
-            kernel.ImportPluginFromObject(new DALLEPlugin(conversationData, turnContext, _aoaiClient), "DALLEPlugin");
-            if (_bingClient != null) kernel.ImportPluginFromObject(new BingPlugin(conversationData, turnContext, _bingClient), "BingPlugin");
-            if (!_useStepwisePlanner) kernel.ImportPluginFromObject(new HumanInterfacePlugin(conversationData, turnContext, _aoaiClient), "HumanInterfacePlugin");
-
-            // Process with stepwise planner if enabled
-            if (_useStepwisePlanner)
-            {
-                var plannerOptions = new FunctionCallingStepwisePlannerConfig { MaxTokens = 128000 };
-                var planner = new FunctionCallingStepwisePlanner(plannerOptions);
-                string prompt = FormatConversationHistory(conversationData);
-                var result = await planner.ExecuteAsync(kernel, prompt);
-                return result.FinalAnswer;
-            }
-            else
-            {
-                var plannerOptions = new HandlebarsPlannerOptions { MaxTokens = 128000 };
-                var planner = new HandlebarsPlanner(plannerOptions);
-                string prompt = FormatConversationHistory(conversationData);
-                var plan = await planner.CreatePlanAsync(kernel, prompt);
-                var result = await plan.InvokeAsync(kernel, default);
-                return result;
+                // Optionally, return a more technical message for debugging purposes
+                return $"Error details: {ex.Message}";
             }
         }
 
@@ -223,7 +257,7 @@ namespace Microsoft.BotBuilderSamples
                 return fallbackMessage;
             }
 
-            string languagesList = string.Join("\n", _supportedLanguages.Select(lang => $"{lang.Value} ({lang.Key})"));
+            string languagesList = string.Join("\n", _supportedLanguages.Select(lang => $"{lang.Value} ({lang.Key})\n"));
             string message = $"Supported languages:\n{languagesList}";
             await turnContext.SendActivityAsync(message);
             return message;

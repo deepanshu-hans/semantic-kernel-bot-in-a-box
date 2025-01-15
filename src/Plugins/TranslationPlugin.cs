@@ -6,6 +6,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Microsoft.SemanticKernel;
 
+namespace Plugins;
 public class TranslationPlugin
 {
     private static readonly string _location = "eastus2";
@@ -18,7 +19,7 @@ public class TranslationPlugin
         _apiEndpoint = apiEndpoint;
     }
 
-    [KernelFunction, Description("Generate translation.")]
+    [KernelFunction, Description("Generate text translation.")]
     public async Task<string> TranslateTextAsync(string text, string targetLanguage)
     {
         var client = new HttpClient();
