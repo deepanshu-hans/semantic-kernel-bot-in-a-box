@@ -46,7 +46,7 @@ public class SQLPlugin
         [Description("The query to run on SQL Server. When referencing tables, make sure to add the schema names.")] string query
     )
     {
-        await _turnContext.SendActivityAsync($"Running query...");
+        await _turnContext.SendActivityAsync($"Running query \"{query}\"...");
         return QueryAsCSV(query);
     }
 

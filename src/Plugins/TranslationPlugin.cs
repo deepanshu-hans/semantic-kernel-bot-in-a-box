@@ -9,14 +9,15 @@ using Microsoft.SemanticKernel;
 namespace Plugins;
 public class TranslationPlugin
 {
-    private static readonly string _location = "eastus2";
+    private readonly string _location;
     private readonly string _apiKey;
     private readonly string _apiEndpoint;
 
-    public TranslationPlugin(string apiKey, string apiEndpoint)
+    public TranslationPlugin(string apiKey, string apiEndpoint, string location = "eastus2")
     {
         _apiKey = apiKey;
         _apiEndpoint = apiEndpoint;
+        _location = location;
     }
 
     [KernelFunction, Description("Generate text translation.")]

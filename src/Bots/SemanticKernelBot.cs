@@ -169,13 +169,13 @@ namespace Microsoft.BotBuilderSamples
                             await turnContext.SendActivityAsync(new Activity
                             {
                                 Type = ActivityTypes.Message,
-                                Text = "Apologies, something went wrong while processing your translation request. Please try again later or provide more details for further assistance."
+                                Text = "Apologies, something went wrong while processing your translation request. Use the format: 'Translate [text] to [language1, language2,...]'"
                             });
                         }
                     }
                     else
                     {
-                        await turnContext.SendActivityAsync("Invalid translation request. Use the format: 'Translate: [text] to [language1, language2,...]'");
+                        await turnContext.SendActivityAsync("Invalid translation request. Use the format: 'Translate [text] to [language1, language2,...]'");
                         return "";
                     }
                 }
@@ -240,7 +240,7 @@ namespace Microsoft.BotBuilderSamples
                 await turnContext.SendActivityAsync(new Activity
                 {
                     Type = ActivityTypes.Message,
-                    Text = "Apologies, something went wrong on our end. We're working on resolving it. Please try again later or provide more details to assist with troubleshooting."
+                    Text = "Apologies, something went wrong on our end. If it is a translation request, please use the format: 'Translate [text] to [language1, language2,...]"
                 });
 
                 // Optionally, return a more technical message for debugging purposes
